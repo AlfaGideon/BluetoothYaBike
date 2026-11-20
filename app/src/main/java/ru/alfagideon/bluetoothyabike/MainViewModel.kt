@@ -33,6 +33,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     /** null = писать во все writable-характеристики. */
     val target: StateFlow<CharInfo?> = _target.asStateFlow()
 
+    init {
+        scanner.onScanFailed = { _scanning.value = false }
+    }
+
     private var onlyNamed = true
     private val allDevices = LinkedHashMap<String, ScanDevice>()
 
@@ -64,12 +68,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     val state: StateFlow<ConnState> = client.state
     val snapshot: StateFlow<GattSnapshot> = client.snapshot
     private var connectedAddress: String? = null
-
-    init {
-        scanner.onScanFailed = {
-            _scanning.value = false
-        }
-    }
 
     private val scanner = BleScanner(
         context = application,
