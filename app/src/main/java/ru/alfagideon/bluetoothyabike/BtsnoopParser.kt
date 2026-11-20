@@ -167,9 +167,9 @@ object BtsnoopParser {
 
             val buffer = if (pb == 0x2) {
                 // Новый L2CAP PDU: сбрасываем недособранный хвост.
-                ByteArrayOutputStream().also { buffers[handle] = it }
+                ByteArrayOutputStream()
             } else {
-                buffers.getOrPut(handle) { ByteArrayOutputStream() }
+                buffers[handle] ?: ByteArrayOutputStream()
             }
             buffer.write(chunk)
 
@@ -180,8 +180,11 @@ object BtsnoopParser {
                 val cid = u16le(acc, 2)
                 if (acc.size < 4 + l2len) break
                 val pdu = acc.copyOfRange(4, 4 + l2len)
-                val rest = acc.copyOfRange(4 + l2len, acc.size)
-                buffers[handle] = ByteArrayOutputStream().also { it.write(rest) }
+                val restBytes = acc.copyOfRange(4 + l2len, acc.size)
+                // Остаток переносим в новый буфер: дописывать в тот же нельзя,
+                // иначе разобранный PDU останется в начале и цикл не закончится.
+                buffer.reset()
+                buffer.write(restBytes)
                 if (cid == L2CAP_CID_ATT) {
                     val frame = parseAtt(ts, pdu)
                     if (frame != null) {

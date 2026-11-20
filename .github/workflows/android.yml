@@ -42,6 +42,7 @@ jobs:
         run: chmod +x ./gradlew
 
       - name: Сборка debug + release APK
+        timeout-minutes: 25
         run: |
           set -o pipefail
           ./gradlew --no-daemon --console=plain assembleDebug assembleRelease 2>&1 | tee "$RUNNER_TEMP/gradle.log"
@@ -51,6 +52,7 @@ jobs:
         run: python3 .github/scripts/annotate_build.py
 
       - name: Юнит-тесты
+        timeout-minutes: 10
         run: ./gradlew --no-daemon --console=plain testDebugUnitTest
 
       - name: Причина падения тестов
