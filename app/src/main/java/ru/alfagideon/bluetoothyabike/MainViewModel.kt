@@ -8,8 +8,12 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.core.content.FileProvider
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.channels.BufferOverflow
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
@@ -19,9 +23,20 @@ import kotlinx.coroutines.launch
  */
 class MainViewModel(application: Application) : AndroidViewModel(application) {
 
-    private val logAdapterBuffer = mutableListOf<LogEntry>()
-    private val _log = MutableStateFlow<List<LogEntry>>(emptyList())
-    val log: StateFlow<List<LogEntry>> = _log.asStateFlow()
+    private val logBuffer = mutableListOf<LogEntry>()
+
+    /**
+     * Журнал отдаётся потоком новых строк, а не копией всего списка:
+     *  - нет O(n²) копирований на каждой строке;
+     *  - UI не «зависает», когда буфер достигает лимита и старые строки вытесняются.
+     * При повороте экрана новый адаптер заполняется из [lineSnapshot].
+     */
+    private val _newLines = MutableSharedFlow<LogEntry>(
+        replay = 0,
+        extraBufferCapacity = 512,
+        onBufferOverflow = BufferOverflow.DROP_OLDEST,
+    )
+    val newLines: SharedFlow<LogEntry> = _newLines.asSharedFlow()
 
     private val _devices = MutableStateFlow<List<ScanDevice>>(emptyList())
     val devices: StateFlow<List<ScanDevice>> = _devices.asStateFlow()
@@ -192,7 +207,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun exportLog(): Uri? {
         val context = getApplication<Application>()
         return try {
-            val file = DebugLog.write(context, logAdapterBuffer, snapshot.value, connectedAddress)
+            val lines = synchronized(logBuffer) { logBuffer.toList() }
+            val file = DebugLog.write(context, lines, snapshot.value, connectedAddress)
             FileProvider.getUriForFile(context, "${context.packageName}.files", file)
         } catch (e: Exception) {
             appendLog(LogEntry(System.currentTimeMillis(), LogKind.ERROR, "Экспорт: ${e.message}"))
@@ -200,14 +216,17 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    /** Последние строки журнала — для восстановления списка после переворота экрана. */
+    fun lineSnapshot(): List<LogEntry> = synchronized(logBuffer) { logBuffer.takeLast(SNAPSHOT_LINES) }
+
     private fun appendLog(entry: LogEntry) {
-        synchronized(logAdapterBuffer) {
-            logAdapterBuffer.add(entry)
-            if (logAdapterBuffer.size > MAX_LOG) {
-                logAdapterBuffer.subList(0, logAdapterBuffer.size - MAX_LOG).clear()
+        synchronized(logBuffer) {
+            logBuffer.add(entry)
+            if (logBuffer.size > MAX_LOG) {
+                logBuffer.subList(0, logBuffer.size - MAX_LOG).clear()
             }
         }
-        _log.value = synchronized(logAdapterBuffer) { logAdapterBuffer.toList() }
+        _newLines.tryEmit(entry)
     }
 
 
@@ -221,5 +240,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     companion object {
         private const val MAX_LOG = 4000
+        private const val SNAPSHOT_LINES = 1500
     }
 }

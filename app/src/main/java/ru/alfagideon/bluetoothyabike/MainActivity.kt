@@ -14,7 +14,6 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
-import androidx.core.content.FileProvider
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
@@ -126,16 +125,17 @@ class MainActivity : AppCompatActivity() {
         lifecycleScope.launch {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
                 launch {
-                    viewModel.log.collect { entries ->
-                        val known = logAdapter.itemCount
-                        if (known == 0) {
-                            logAdapter.appendAll(entries.takeLast(2000))
-                        } else {
-                            logAdapter.appendAll(entries.drop(known))
-                        }
+                    // После переворота экрана адаптер пуст — наполняем его из буфера,
+                    // дальше просто принимаем новые строки потоком.
+                    if (logAdapter.itemCount == 0) {
+                        logAdapter.appendAll(viewModel.lineSnapshot())
                         if (logAdapter.itemCount > 0) {
                             binding.rvLog.scrollToPosition(logAdapter.itemCount - 1)
                         }
+                    }
+                    viewModel.newLines.collect { entry ->
+                        logAdapter.append(entry)
+                        binding.rvLog.scrollToPosition(logAdapter.itemCount - 1)
                     }
                 }
                 launch {
