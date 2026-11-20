@@ -24,6 +24,17 @@ for path in paths:
             head = message[0] if message else tag
             lines.append(f"{case.get('classname')}.{case.get('name')}: {head[:300]}")
 
+# Плюс системный вывод тестов — там диагностика.
+for path in glob.glob("app/build/test-results/**/*.xml", recursive=True):
+    try:
+        root = ET.parse(path).getroot()
+    except ET.ParseError:
+        continue
+    for so in root.iter("system-err"):
+        for line in (so.text or "").splitlines():
+            if line.startswith("DIAG"):
+                lines.append(line[:400])
+
 if not lines:
     print("::error title=Tests::тесты не найдены в отчётах")
 else:

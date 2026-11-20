@@ -79,6 +79,15 @@ class BtsnoopParserTest {
     }
 
     @Test
+    fun diagnosticsForFailure() {
+        System.err.println("DIAG len=" + golden.size + " hex=" + Hex.toHex(golden))
+        System.err.println("DIAG magic=" + String(golden, 0, 8, Charsets.ISO_8859_1))
+        System.err.println("DIAG datalink=" + ((golden[12].toInt() and 0xFF) shl 24 or ((golden[13].toInt() and 0xFF) shl 16) or ((golden[14].toInt() and 0xFF) shl 8) or (golden[15].toInt() and 0xFF)))
+        val report = BtsnoopParser.parse(golden)
+        System.err.println("DIAG connections=" + report.connections + " frames=" + report.frames.size + " packets=" + report.totalPackets)
+    }
+
+    @Test
     fun junkIsRejected() {
         val report = BtsnoopParser.parse("not a btsnoop".toByteArray())
         assertTrue(report.frames.isEmpty())
