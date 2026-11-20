@@ -51,6 +51,17 @@
             android:textSize="11sp" />
     </LinearLayout>
 
+    <TextView
+        android:id="@+id/tvHint"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="4dp"
+        android:background="@drawable/bg_card"
+        android:padding="6dp"
+        android:text="@string/hci_warn_banner"
+        android:textColor="@color/warn"
+        android:textSize="9sp" />
+
     <!-- Поиск устройств -->
     <LinearLayout
         android:layout_width="match_parent"
@@ -115,6 +126,15 @@
                 android:layout_height="wrap_content"
                 android:minWidth="0dp"
                 android:text="@string/radar_start"
+                android:textSize="11sp" />
+
+            <Button
+                android:id="@+id/btnImport"
+                style="@style/Widget.Material3.Button.TextButton"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:minWidth="0dp"
+                android:text="@string/hci_import"
                 android:textSize="11sp" />
 
             <Button

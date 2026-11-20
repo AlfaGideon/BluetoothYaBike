@@ -15,6 +15,17 @@
     <string name="autopick_start">Поднести к байку</string>
     <string name="autopick_stop">Отменить автоподключение</string>
     <string name="list_hint">долгий тап — скопировать MAC</string>
+    <string name="hci_import">HCI-лог</string>
+    <string name="hci_import_title">Импорт HCI-лога</string>
+    <string name="hci_import_note">Сначала включите в настройках разработчика «Журнал Bluetooth HCI», перезагрузите Bluetooth, разблокируйте байк официальным приложением, затем: Настройки → Для разработчиков → «Взять отчёт об ошибке» (сохранится zip). Выберите этот zip здесь — кадры обмена с байком появятся в списке, и их можно будет повторить.</string>
+    <string name="hci_import_pick">Выбрать zip или btsnoop</string>
+    <string name="hci_import_show">Показать разбор</string>
+    <string name="hci_no_frames">В логе нет кадров. Проверьте: HCI-лог включён, Bluetooth перезагружали, байк разблокировали уже после включения лога.</string>
+    <string name="hci_writes_title">Записи в логе: %1$d</string>
+    <string name="hci_show_all">Все кадры</string>
+    <string name="hci_replay_title">Повторить кадр?</string>
+    <string name="hci_replay_note">Будет отправлен кадр %1$s в выбранный канал. Если протокол привязан к сессии, байк его проигнорирует — это нормально, смотрите ответ в журнале.</string>
+    <string name="hci_warn_banner">Android не даёт приложению читать Bluetooth-трафик другого приложения — байк виден только если он в эфире и вы сканируете. Кадры официального приложения берутся из системного HCI-лога: кнопка «HCI-лог».</string>
     <string name="export">Экспорт</string>
     <string name="send">Отправить</string>
     <string name="presets">Тест-кадры</string>

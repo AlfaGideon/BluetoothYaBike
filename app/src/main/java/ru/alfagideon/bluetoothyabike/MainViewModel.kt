@@ -56,6 +56,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     /** Показывать все устройства в эфире, не только «с именем». */
     val showAll: StateFlow<Boolean> = _showAll.asStateFlow()
 
+    /** Последний импортированный HCI-лог: null — ещё не разбирали. */
+    private val _hciReport = MutableStateFlow<ParseReport?>(null)
+    val hciReport: StateFlow<ParseReport?> = _hciReport.asStateFlow()
+
     private val _target = MutableStateFlow<CharInfo?>(null)
     /** null = писать во все writable-характеристики. */
     val target: StateFlow<CharInfo?> = _target.asStateFlow()
@@ -291,6 +295,66 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch(Dispatchers.IO) {
             client.send(bytes, info, withResponse = true)
         }
+    }
+
+    /** Разбирает выбранный файл: btsnoop или bugreport-zip. */
+    fun importHciLog(stream: java.io.InputStream) {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val bytes = stream.use { it.readBytes() }
+                val raw = when {
+                    BtsnoopParser.looksLikeBtsnoop(bytes) -> bytes
+                    BtsnoopParser.looksLikeZip(bytes) -> BtsnoopParser.extractFromZip(bytes.inputStream())
+                    else -> null
+                }
+                if (raw == null) {
+                    appendLog(
+                        LogEntry(
+                            System.currentTimeMillis(),
+                            LogKind.ERROR,
+                            "В файле нет btsnoop_hci.log (нужен btsnoop или bugreport-архив)",
+                        ),
+                    )
+                    return@launch
+                }
+                val report = BtsnoopParser.parse(raw, connectedAddress)
+                _hciReport.value = report
+                appendLog(
+                    LogEntry(
+                        System.currentTimeMillis(),
+                        if (report.frames.isEmpty()) LogKind.WARN else LogKind.OK,
+                        "HCI-лог: пакетов ${report.totalPackets}, соединений ${report.connections.size}, " +
+                            "ATT-кадров ${report.frames.size}, записей ${report.writes.size}" +
+                            if (report.truncated) " (обрезано)" else "",
+                    ),
+                )
+                report.connections.forEach { (handle, address) ->
+                    appendLog(LogEntry(System.currentTimeMillis(), LogKind.INFO, "Соединение handle=$handle MAC=$address"))
+                }
+            } catch (e: Exception) {
+                appendLog(LogEntry(System.currentTimeMillis(), LogKind.ERROR, "Импорт HCI: ${e.message}"))
+            }
+        }
+    }
+
+    /**
+     * Воспроизводит запись из HCI-лога. Если запись шла в конкретный handle —
+     * ищем характеристику с тем же UUID; чаще всего у байка это единственный
+     * write-канал, поэтому при неоднозначности пишем во все безопасные.
+     */
+    fun replayHciFrame(frame: AttFrame) {
+        if (_target.value == null) {
+            val suggestion = BikeBleClient.suggestTarget(snapshot.value.chars)
+            if (suggestion != null) _target.value = suggestion
+        }
+        appendLog(
+            LogEntry(
+                System.currentTimeMillis(),
+                LogKind.INFO,
+                "Повтор из лога (handle %#06x): %s".format(frame.handle, Hex.pretty(frame.value)),
+            ),
+        )
+        send(frame.value, withResponse = frame.expectsResponse)
     }
 
     fun exportLog(): Uri? {

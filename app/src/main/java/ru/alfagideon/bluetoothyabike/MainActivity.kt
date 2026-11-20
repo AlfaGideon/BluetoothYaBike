@@ -51,6 +51,14 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    private val pickHciLog =
+        registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+            if (uri != null) {
+                contentResolver.openInputStream(uri)?.let { viewModel.importHciLog(it) }
+                    ?: toast("Не удалось открыть файл")
+            }
+        }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         binding = ActivityMainBinding.inflate(layoutInflater)
@@ -121,8 +129,66 @@ class MainActivity : AppCompatActivity() {
             viewModel.setShowAll(checked)
         }
 
+        binding.btnImport.setOnClickListener { showHciImport() }
         binding.btnRadar.setOnClickListener { viewModel.toggleHub() }
         binding.btnAutoPick.setOnClickListener { viewModel.toggleAutoPick() }
+    }
+
+    /** Выбор bugreport-архива или btsnoop-файла и разбор найденных кадров. */
+    private fun showHciImport() {
+        AlertDialog.Builder(this)
+            .setTitle(R.string.hci_import_title)
+            .setMessage(R.string.hci_import_note)
+            .setPositiveButton(R.string.hci_import_pick) { _, _ ->
+                pickHciLog.launch(arrayOf("application/zip", "application/octet-stream", "*/*"))
+            }
+            .setNeutralButton(R.string.hci_import_show) { _, _ -> showHciFrames() }
+            .setNegativeButton(android.R.string.cancel, null)
+            .show()
+    }
+
+    private fun showHciFrames() {
+        val report = viewModel.hciReport.value
+        if (report == null || report.frames.isEmpty()) {
+            toast(getString(R.string.hci_no_frames))
+            return
+        }
+        val writes = report.uniqueWrites()
+        val timeZero = report.frames.first().timeUs
+        val labels = writes.map { frame ->
+            val ms = (frame.timeUs - timeZero) / 1000.0
+            "%.1f мс · handle %#06x · %s".format(ms, frame.handle, Hex.pretty(frame.value))
+        }.toTypedArray()
+        if (labels.isEmpty()) {
+            AlertDialog.Builder(this)
+                .setTitle(R.string.hci_import_title)
+                .setMessage(report.table())
+                .setPositiveButton(android.R.string.ok, null)
+                .show()
+            return
+        }
+        AlertDialog.Builder(this)
+            .setTitle(getString(R.string.hci_writes_title, writes.size))
+            .setItems(labels) { _, which -> confirmReplay(writes[which]) }
+            .setNeutralButton(R.string.hci_show_all) { d, _ ->
+                AlertDialog.Builder(this)
+                    .setTitle(R.string.hci_import_title)
+                    .setMessage(report.table())
+                    .setPositiveButton(android.R.string.ok, null)
+                    .show()
+                d.dismiss()
+            }
+            .setNegativeButton(android.R.string.cancel, null)
+            .show()
+    }
+
+    private fun confirmReplay(frame: AttFrame) {
+        AlertDialog.Builder(this)
+            .setTitle(R.string.hci_replay_title)
+            .setMessage(getString(R.string.hci_replay_note, Hex.toHex(frame.value)))
+            .setPositiveButton(R.string.send) { _, _ -> viewModel.replayHciFrame(frame) }
+            .setNegativeButton(android.R.string.cancel, null)
+            .show()
     }
 
     /** Долгое нажатие на карточку — MAC в буфер обмена (нужен для разбора HCI-лога). */
