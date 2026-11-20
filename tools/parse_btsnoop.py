@@ -39,6 +39,19 @@ class Packet:
     data: bytes
 
 
+def sniff_datalink(raw: bytes) -> int:
+    """Эвристика для btsnoop с неизвестным datalink: 1002 (Android) или 1001 (H4 UART).
+
+    Заголовок официального Android-лога может содержать 1002, но записи при этом
+    храниться как H4 (с префиксом типа) — поэтому тип пакета определяем по данным.
+    """
+    try:
+        value = struct.unpack(">I", raw[12:16])[0]
+        return value if value in (1001, 1002) else 1002
+    except struct.error:
+        return 1002
+
+
 def read_btsnoop(path: str):
     with open(path, "rb") as f:
         raw = f.read()
@@ -50,8 +63,8 @@ def read_btsnoop(path: str):
     # version(4) + datalink_type(4) = 16 байт вместе с магией
     datalink = struct.unpack(">I", raw[12:16])[0]
     if datalink not in (1002, 1001):
-        # 1002 = H4 (Android), 1001 = HCI UART (старые)
-        print(f"# внимание: datalink_type={datalink}, ожидался 1002/1001", file=sys.stderr)
+        datalink = sniff_datalink(raw)
+        print(f"# внимание: неизвестный datalink_type, считаю {datalink}", file=sys.stderr)
     offset = 16
     packets = []
     while offset + 24 <= len(raw):
@@ -63,6 +76,17 @@ def read_btsnoop(path: str):
     return packets
 
 
+def packet_type_and_payload(d: bytes, flags: int):
+    """Возвращает (тип HCI-пакета, полезная нагрузка) для btsnoop-записи."""
+    # Android 9+: flags = (тип << 9) | направление, префикса типа в данных нет.
+    # 0=command, 1=ACL, 2=SCO, 3=event, 4=ISO.
+    if (flags >> 9) != 0:
+        return (flags >> 9) & 0x1F, d
+    if d[0] in (1, 2, 3, 4, 5):             # H4/UART: тип первым байтом
+        return d[0], d[1:]
+    return (flags >> 1) & 0x0F, d           # старый btsnoop_hci / команды с flags 0..1
+
+
 def packets_to_hci(packets):
     """btsnoop-запись хранит HCI-пакеты либо в H4 (с префиксом типа), либо без него.
 
@@ -71,19 +95,9 @@ def packets_to_hci(packets):
     """
     out = []
     for p in packets:
-        d = p.data
-        if not d:
+        if not p.data:
             continue
-        flags = p.flags
-        if flags & 0x100:            # Android 9+: тип пакета в flags
-            pkt_type = (flags >> 9) & 0x1F
-            payload = d
-        elif d[0] in (1, 2, 3, 4, 5):
-            pkt_type = d[0]           # H4/UART: тип первым байтом
-            payload = d[1:]
-        else:
-            pkt_type = (flags >> 1) & 0x0F   # старый btsnoop_hci
-            payload = d
+        pkt_type, payload = packet_type_and_payload(p.data, p.flags)
         if pkt_type > 5:
             continue
         out.append((p.ts_us, pkt_type, payload))

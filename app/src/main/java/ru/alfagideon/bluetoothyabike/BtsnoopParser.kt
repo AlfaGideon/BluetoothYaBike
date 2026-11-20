@@ -200,8 +200,12 @@ object BtsnoopParser {
     private fun splitPacket(data: ByteArray, flags: Int): Pair<Int, ByteArray>? {
         if (data.isEmpty()) return null
         return when {
-            // Android 9+: тип пакета в flags (биты 9+), направление — бит 0.
-            flags and 0x100 != 0 -> ((flags shr 9) and 0x1F) to data
+            // Android 9+: тип пакета в битах 9+ (0=cmd, 1=ACL, 2=SCO, 3=event, 4=ISO),
+            // направление — бит 0. Проверяем оба старших бита: 0x200 = ACL, 0x100 = команда.
+            // (Только 0x100 проверять нельзя: у команды тип 0, и лог был бы нечитаем.)
+            // Android 9+: flags = (тип << 9) | направление, префикса типа в данных нет.
+            // 0=command, 1=ACL, 2=SCO, 3=event, 4=ISO.
+            (flags shr 9) != 0 -> ((flags shr 9) and 0x1F) to data
             // H4/UART: тип первым байтом.
             data[0].toInt() in 1..5 -> data[0].toInt() to data.copyOfRange(1, data.size)
             // Старый btsnoop_hci: тип в битах 1..3.
