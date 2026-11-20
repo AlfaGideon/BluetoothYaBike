@@ -46,6 +46,9 @@ class BleScanner(
     var isScanning: Boolean = false
         private set
 
+    /** Вызывается, когда система сама остановила скан (ошибка), чтобы UI сбросил кнопку. */
+    var onScanFailed: (err: Int) -> Unit = {}
+
     private val found = LinkedHashMap<String, ScanDevice>()
 
     private val callback = object : ScanCallback() {
@@ -60,6 +63,7 @@ class BleScanner(
         override fun onScanFailed(errorCode: Int) {
             isScanning = false
             onError("Ошибка сканирования: код $errorCode")
+            onScanFailed(errorCode)
         }
     }
 

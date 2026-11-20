@@ -65,6 +65,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     val snapshot: StateFlow<GattSnapshot> = client.snapshot
     private var connectedAddress: String? = null
 
+    init {
+        scanner.onScanFailed = {
+            _scanning.value = false
+        }
+    }
+
     private val scanner = BleScanner(
         context = application,
         onDevice = { device ->
@@ -126,6 +132,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun connect(device: BluetoothDevice) {
+        if (_scanning.value) stopScan()
         connectedAddress = device.address
         targetAutoChosen = false
         _target.value = null
@@ -207,7 +214,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     override fun onCleared() {
         scanner.stop()
+        scanner.onScanFailed = {}
         client.disconnect(silent = true)
+        client.shutdown()
         super.onCleared()
     }
 

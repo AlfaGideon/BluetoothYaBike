@@ -18,6 +18,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import java.nio.charset.StandardCharsets
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.Executors
 
 /** Одна характеристика GATT с удобными свойствами. */
 data class CharInfo(
@@ -108,7 +109,21 @@ class BikeBleClient(
 
     private var gatt: BluetoothGatt? = null
     private val charsByKey = ConcurrentHashMap<String, BluetoothGattCharacteristic>()
+    @Volatile
     private var subscribed = false
+
+    /**
+     * Android допускает только одну GATT-операцию за раз: параллельные вызовы
+     * read/write молча возвращают busy и подписки "залипают" (частая причина статуса 133).
+     * Все записи и чтения проходят через единый последовательный исполнитель.
+     */
+    private val io = Executors.newSingleThreadExecutor { r ->
+        Thread(r, "gatt-io").apply { isDaemon = true }
+    }
+
+    private fun post(block: () -> Unit) {
+        runCatching { io.execute(block) }
+    }
 
     fun charForKey(key: String): CharInfo? = _snapshot.value.chars.firstOrNull { it.key == key }
 
@@ -147,52 +162,77 @@ class BikeBleClient(
         }
     }
 
+    /** Освобождает поток операций; вызывается, когда ViewModel умирает. */
+    fun shutdown() {
+        runCatching { io.shutdownNow() }
+    }
+
     /** Включить/повторить подписку на все характеристики с notify/indicate. */
     @SuppressLint("MissingPermission")
     fun subscribeAll() {
         val g = gatt ?: return
-        val snapshot = charsByKey.values.toList()
-        snapshot.filter { it.properties and (BluetoothGattCharacteristic.PROPERTY_NOTIFY or BluetoothGattCharacteristic.PROPERTY_INDICATE) != 0 }
-            .forEach { c ->
-                try {
-                    g.setCharacteristicNotification(c, true)
-                    c.getDescriptor(CCCD)?.let { d ->
-                        writeDescriptor(d, if (c.properties and BluetoothGattCharacteristic.PROPERTY_NOTIFY != 0) {
-                            BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE
-                        } else {
-                            BluetoothGattDescriptor.ENABLE_INDICATION_VALUE
-                        })
+        post {
+            if (this.gatt !== g) return@post
+            val snapshot = charsByKey.values.toList()
+            snapshot.filter { it.properties and (BluetoothGattCharacteristic.PROPERTY_NOTIFY or BluetoothGattCharacteristic.PROPERTY_INDICATE) != 0 }
+                .forEach { c ->
+                    try {
+                        g.setCharacteristicNotification(c, true)
+                        c.getDescriptor(CCCD)?.let { d ->
+                            writeDescriptor(d, if (c.properties and BluetoothGattCharacteristic.PROPERTY_NOTIFY != 0) {
+                                BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE
+                            } else {
+                                BluetoothGattDescriptor.ENABLE_INDICATION_VALUE
+                            })
+                        }
+                    } catch (e: Exception) {
+                        log(LogKind.WARN, "Подписка ${c.uuid}: ${e.message}")
                     }
-                } catch (e: Exception) {
-                    log(LogKind.WARN, "Подписка ${c.uuid}: ${e.message}")
+                    // Даём контроллеру завершить CCCD-запись, иначе следующая операция получит busy.
+                    sleepQuietly(120)
                 }
-            }
-        subscribed = true
+            subscribed = true
+        }
+    }
+
+    private fun sleepQuietly(ms: Long) {
+        try {
+            Thread.sleep(ms)
+        } catch (_: InterruptedException) {
+            Thread.currentThread().interrupt()
+        }
     }
 
     /** Читает все читаемые характеристики — полезно как снимок состояния после коннекта. */
     @SuppressLint("MissingPermission")
     fun readAll() {
         val g = gatt ?: return
-        charsByKey.values.toList()
-            .filter { it.properties and BluetoothGattCharacteristic.PROPERTY_READ != 0 }
-            .forEach { c ->
-            try {
-                g.readCharacteristic(c)
-            } catch (e: Exception) {
-                log(LogKind.WARN, "Чтение ${c.uuid}: ${e.message}")
-            }
+        post {
+            if (this.gatt !== g) return@post
+            charsByKey.values.toList()
+                .filter { it.properties and BluetoothGattCharacteristic.PROPERTY_READ != 0 }
+                .forEach { c ->
+                    try {
+                        g.readCharacteristic(c)
+                    } catch (e: Exception) {
+                        log(LogKind.WARN, "Чтение ${c.uuid}: ${e.message}")
+                    }
+                    sleepQuietly(150)
+                }
         }
     }
 
     @SuppressLint("MissingPermission")
     fun read(info: CharInfo) {
         val g = gatt ?: return
-        val c = charsByKey[info.key] ?: return
-        try {
-            g.readCharacteristic(c)
-        } catch (e: Exception) {
-            log(LogKind.WARN, "Чтение ${info.uuid}: ${e.message}")
+        post {
+            if (this.gatt !== g) return@post
+            val c = charsByKey[info.key] ?: return@post
+            try {
+                g.readCharacteristic(c)
+            } catch (e: Exception) {
+                log(LogKind.WARN, "Чтение ${info.uuid}: ${e.message}")
+            }
         }
     }
 
@@ -204,6 +244,20 @@ class BikeBleClient(
     fun send(payload: ByteArray, target: CharInfo?, withResponse: Boolean, delayMs: Long = 250L) {
         val g = gatt ?: run {
             log(LogKind.ERROR, "Нет подключения — кадр не отправлен")
+            return
+        }
+        post { sendBlocking(g, payload, target, withResponse, delayMs) }
+    }
+
+    private fun sendBlocking(
+        g: BluetoothGatt,
+        payload: ByteArray,
+        target: CharInfo?,
+        withResponse: Boolean,
+        delayMs: Long,
+    ) {
+        if (this.gatt !== g) {
+            log(LogKind.WARN, "Соединение уже переподключено — кадр пропущен")
             return
         }
         val targets = if (target != null) {
@@ -237,7 +291,7 @@ class BikeBleClient(
             } catch (e: Exception) {
                 log(LogKind.ERROR, "TX → ${info.uuid}: ${e.message}", payload)
             }
-            if (index < targets.lastIndex) Thread.sleep(delayMs)
+            if (index < targets.lastIndex) sleepQuietly(delayMs)
         }
     }
 
@@ -319,7 +373,7 @@ class BikeBleClient(
                     }
                     _state.value = ConnState.Disconnected(g.device.address, reason)
                     log(LogKind.WARN, "Отключено: $reason")
-                    runCatching { g.close() }
+                    post { runCatching { g.close() } }
                     if (gatt === g) gatt = null
                 }
             }
