@@ -78,6 +78,7 @@ class MainActivity : AppCompatActivity() {
         binding.tvAdapterState.text = BikeBleClient.adapterState(this)
 
         bindButtons()
+        bindCollapsibleNotes()
         collectFlows()
         ensurePermissions()
     }
@@ -132,6 +133,16 @@ class MainActivity : AppCompatActivity() {
         binding.btnImport.setOnClickListener { showHciImport() }
         binding.btnRadar.setOnClickListener { viewModel.toggleHub() }
         binding.btnAutoPick.setOnClickListener { viewModel.toggleAutoPick() }
+    }
+
+    /** Длинные пояснения свёрнуты в две строки, по тапу разворачиваются. */
+    private fun bindCollapsibleNotes() {
+        listOf(binding.tvHint, binding.tvSecretNote).forEach { view ->
+            view.maxLines = 2
+            view.setOnClickListener {
+                view.maxLines = if (view.maxLines == 2) Int.MAX_VALUE else 2
+            }
+        }
     }
 
     /** Мастер захвата: что можно включить самим, что открыть одним тапом, где разобрать. */
