@@ -11,9 +11,14 @@ class LogAdapter : RecyclerView.Adapter<LogAdapter.Holder>() {
 
     private val items = mutableListOf<LogEntry>()
 
-    fun append(entry: LogEntry) {
-        items.add(entry)
-        notifyItemInserted(items.size - 1)
+    fun append(entry: LogEntry) = appendAll(listOf(entry))
+
+    /** Пакетное добавление: при повороте экрана журнал восстанавливается одним вызовом. */
+    fun appendAll(entries: List<LogEntry>) {
+        if (entries.isEmpty()) return
+        val start = items.size
+        items.addAll(entries)
+        notifyItemRangeInserted(start, entries.size)
         if (items.size > MAX_LINES) {
             val removed = items.size - MAX_LINES
             repeat(removed) { items.removeAt(0) }

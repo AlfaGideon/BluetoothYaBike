@@ -17,6 +17,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import java.nio.charset.StandardCharsets
 import java.util.UUID
+import java.util.concurrent.ConcurrentHashMap
 
 /** Одна характеристика GATT с удобными свойствами. */
 data class CharInfo(
@@ -106,7 +107,7 @@ class BikeBleClient(
     val lastRx: StateFlow<Pair<CharInfo, ByteArray>?> = _lastRx.asStateFlow()
 
     private var gatt: BluetoothGatt? = null
-    private val charsByKey = HashMap<String, BluetoothGattCharacteristic>()
+    private val charsByKey = ConcurrentHashMap<String, BluetoothGattCharacteristic>()
     private var subscribed = false
 
     fun charForKey(key: String): CharInfo? = _snapshot.value.chars.firstOrNull { it.key == key }
@@ -150,7 +151,8 @@ class BikeBleClient(
     @SuppressLint("MissingPermission")
     fun subscribeAll() {
         val g = gatt ?: return
-        charsByKey.values.filter { it.properties and (BluetoothGattCharacteristic.PROPERTY_NOTIFY or BluetoothGattCharacteristic.PROPERTY_INDICATE) != 0 }
+        val snapshot = charsByKey.values.toList()
+        snapshot.filter { it.properties and (BluetoothGattCharacteristic.PROPERTY_NOTIFY or BluetoothGattCharacteristic.PROPERTY_INDICATE) != 0 }
             .forEach { c ->
                 try {
                     g.setCharacteristicNotification(c, true)
@@ -172,7 +174,9 @@ class BikeBleClient(
     @SuppressLint("MissingPermission")
     fun readAll() {
         val g = gatt ?: return
-        charsByKey.values.filter { it.properties and BluetoothGattCharacteristic.PROPERTY_READ != 0 }.forEach { c ->
+        charsByKey.values.toList()
+            .filter { it.properties and BluetoothGattCharacteristic.PROPERTY_READ != 0 }
+            .forEach { c ->
             try {
                 g.readCharacteristic(c)
             } catch (e: Exception) {
@@ -205,7 +209,7 @@ class BikeBleClient(
         val targets = if (target != null) {
             listOfNotNull(charsByKey[target.key]).map { CharInfo(target.serviceUuid, target.uuid, target.properties, target.instance) to it }
         } else {
-            val writable = charsByKey.values.filter {
+            val writable = charsByKey.values.toList().filter {
                 it.properties and (BluetoothGattCharacteristic.PROPERTY_WRITE or BluetoothGattCharacteristic.PROPERTY_WRITE_NO_RESPONSE) != 0
             }
             val safe = writable.filterNot { isDangerous(it.service?.uuid ?: UUID(0, 0)) }

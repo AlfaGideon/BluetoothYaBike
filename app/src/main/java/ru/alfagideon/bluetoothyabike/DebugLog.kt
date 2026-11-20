@@ -20,11 +20,10 @@ object DebugLog {
 
     private const val DIR_NAME = "logs"
     private const val MIME = "text/plain"
-    private val STAMP = SimpleDateFormat("yyyyMMdd-HHmmss", Locale.US)
 
     fun fileFor(context: Context): File {
         val dir = File(context.filesDir, DIR_NAME).apply { mkdirs() }
-        val name = "ble-log-${STAMP.format(Date())}.txt"
+        val name = "ble-log-${SimpleDateFormat("yyyyMMdd-HHmmss", Locale.US).format(Date())}.txt"
         return File(dir, name)
     }
 

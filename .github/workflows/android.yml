@@ -76,5 +76,22 @@ jobs:
           files: app/build/outputs/apk/release/*.apk
           generate_release_notes: true
 
+      # Постоянная ссылка: https://github.com/AlfaGideon/BluetoothYaBike/releases/latest/download/app-release.apk
+      # Тег latest перезаписывается каждым успешным пушем, поэтому ссылка всегда на свежий APK.
+      - name: Перезаписать релиз latest
+        if: github.event_name == 'push'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: latest
+          name: Последняя сборка
+          body: |
+            APK, собранный из ${{ github.ref_name }} @ ${{ github.sha }}.
+            Скачать: `app-release.apk` (release-подпись debug-ключом) или `app-debug.apk`.
+          files: |
+            app/build/outputs/apk/release/app-release.apk
+            app/build/outputs/apk/debug/app-debug.apk
+          prerelease: true
+          make_latest: false
+
   # Ручной запуск из ветки: свежий APK всегда доступен как "последний успешный артефакт".
   # Скачать: Actions -> нужный run -> Artifacts -> BluetoothYaBike-<sha>.zip

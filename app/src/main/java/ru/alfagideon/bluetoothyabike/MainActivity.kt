@@ -102,11 +102,13 @@ class MainActivity : AppCompatActivity() {
                     viewModel.log.collect { entries ->
                         val known = logAdapter.itemCount
                         if (known == 0) {
-                            entries.takeLast(2000).forEach(logAdapter::append)
+                            logAdapter.appendAll(entries.takeLast(2000))
                         } else {
-                            entries.drop(known).forEach(logAdapter::append)
+                            logAdapter.appendAll(entries.drop(known))
                         }
-                        binding.rvLog.scrollToPosition(logAdapter.itemCount - 1)
+                        if (logAdapter.itemCount > 0) {
+                            binding.rvLog.scrollToPosition(logAdapter.itemCount - 1)
+                        }
                     }
                 }
                 launch {

@@ -6,11 +6,13 @@ data class LogEntry(
     val text: String,
     val bytes: ByteArray? = null,
 ) {
-    fun format(): String = "${TIME_FORMAT.format(java.util.Date(timeMs))} [${kind.tag}] $text"
+    fun format(): String = "${formatter.get()!!.format(java.util.Date(timeMs))} [${kind.tag}] $text"
 
     companion object {
-        private val TIME_FORMAT =
-            java.text.SimpleDateFormat("HH:mm:ss.SSS", java.util.Locale.US)
+        // SimpleDateFormat не потокобезопасен, а записи пишутся из GATT-потока и читаются из UI.
+        private val formatter = object : ThreadLocal<java.text.SimpleDateFormat>() {
+            override fun initialValue() = java.text.SimpleDateFormat("HH:mm:ss.SSS", java.util.Locale.US)
+        }
     }
 }
 
