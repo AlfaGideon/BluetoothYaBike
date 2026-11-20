@@ -11,15 +11,17 @@ import java.util.zip.ZipOutputStream
 class BtsnoopParserTest {
 
     /**
-     * Эталонный btsnoop в точном формате Android 9+ (datalink 1002, flags = тип << 9):
+     * Эталонный btsnoop в точном формате Android (datalink 1002 = H4: каждая запись
+     * начинается байтом типа 0x04/0x02, в flags только направление):
      *  - LE Connection Complete (event) для AA:BB:CC:DD:EE:FF, handle 0x0041;
      *  - ATT Write Command: handle 0x0011, значение 01 02 03;
      *  - ATT Notification: handle 0x0022, значение DE AD BE EF.
      * Сгенерирован отдельным скриптом и сверен с tools/parse_btsnoop.py.
      */
     private val golden = java.util.Base64.getDecoder().decode(
-        "YnRzbm9vcAAAAAABAAAD6gAAAA0AAAANAAAGAAAAAAAAAAAAAA9KED4BAEEAAAD/7t3Mu6oAAAAOAAAADgAABAE" +
-            "AAAAAAAAAAAAPUeBBIAoABgAEABIRAAECAwAAAA8AAAAPAAAEAAAAAAAAAAAAAA9ZsEEgCwAHAAQAGyIA3q2+7w==",
+        "YnRzbm9vcAAAAAABAAAD6gAAAA4AAAAOAAAAAwAAAAAAAAAAAA9KEAQ+AQBBAAAA/+7dzLuqAAAADwAAAA8AAAAA" +
+            "AAAAAAAAAA9R4AJBIAoABgAEABIRAAECAwAAABAAAAAQAAAAAQAAAAAAAAAAAA9ZsAJBIAsABwAEABsiAN6t" +
+            "vu8=",
     )
 
     private val mac = "AA:BB:CC:DD:EE:FF"

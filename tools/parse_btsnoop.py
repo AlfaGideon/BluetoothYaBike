@@ -73,21 +73,29 @@ def read_btsnoop(path: str):
         data = raw[offset:offset + incl_len]
         offset += incl_len
         packets.append(Packet(ts, flags, data))
-    return packets
+    return packets, datalink
 
 
-def packet_type_and_payload(d: bytes, flags: int):
-    """Возвращает (тип HCI-пакета, полезная нагрузка) для btsnoop-записи."""
-    # Android 9+: flags = (тип << 9) | направление, префикса типа в данных нет.
-    # 0=command, 1=ACL, 2=SCO, 3=event, 4=ISO.
-    if (flags >> 9) != 0:
-        return (flags >> 9) & 0x1F, d
-    if d[0] in (1, 2, 3, 4, 5):             # H4/UART: тип первым байтом
+def packet_type_and_payload(d: bytes, flags: int, datalink: int = 1002):
+    """Возвращает (тип HCI-пакета в нумерации H4, полезная нагрузка).
+
+    1002 = HCI UART (H4), так пишет Android: каждая запись начинается байтом типа
+    (0x01 command, 0x02 ACL, 0x03 SCO, 0x04 event). Для остальных datalink тип
+    восстанавливается из flags: бит 1 = 0 -> ACL, 1 -> command (бит 0 = 0)
+    или event (бит 0 = 1).
+    """
+    if not d:
+        return 0, d
+    if datalink == 1002 and d[0] in (1, 2, 3, 4):
         return d[0], d[1:]
-    return (flags >> 1) & 0x0F, d           # старый btsnoop_hci / команды с flags 0..1
+    is_cmd_or_event = bool(flags & 0x02)
+    is_received = bool(flags & 0x01)
+    if not is_cmd_or_event:
+        return 2, d
+    return (4 if is_received else 1), d
 
 
-def packets_to_hci(packets):
+def packets_to_hci(packets, datalink: int = 1002):
     """btsnoop-запись хранит HCI-пакеты либо в H4 (с префиксом типа), либо без него.
 
     В Android (datalink 1002) тип пакета закодирован в flags: младший бит = направление,
@@ -97,7 +105,7 @@ def packets_to_hci(packets):
     for p in packets:
         if not p.data:
             continue
-        pkt_type, payload = packet_type_and_payload(p.data, p.flags)
+        pkt_type, payload = packet_type_and_payload(p.data, p.flags, datalink)
         if pkt_type > 5:
             continue
         out.append((p.ts_us, pkt_type, payload))
@@ -179,8 +187,8 @@ def ascii_view(data: bytes) -> str:
 
 
 def scan(path: str, mac: str | None, only_writes: bool, show_all_handles: bool) -> None:
-    packets = read_btsnoop(path)
-    hci = packets_to_hci(packets)
+    packets, datalink = read_btsnoop(path)
+    hci = packets_to_hci(packets, datalink)
     reassembler = L2capReassembler()
 
     handle_of_interest: set[int] = set()

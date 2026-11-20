@@ -59,6 +59,7 @@ data class ParseReport(
 object BtsnoopParser {
 
     private const val MAGIC = "btsnoop\u0000"
+    private const val DATALINK_H4 = 1002
     private const val L2CAP_CID_ATT = 4
     private const val MAX_FRAMES = 20_000
 
@@ -114,6 +115,7 @@ object BtsnoopParser {
         if (!looksLikeBtsnoop(bytes)) {
             return ParseReport(emptyList(), emptyList(), 0, false)
         }
+        val datalink = u32be(bytes, 12)
         val headerEnd = 16
         var offset = headerEnd
         val handles = mutableMapOf<Int, String>()
@@ -136,7 +138,7 @@ object BtsnoopParser {
             val data = bytes.copyOfRange(offset, offset + inclLen)
             offset += inclLen
 
-            val packet = splitPacket(data, flags) ?: continue
+            val packet = splitPacket(data, flags, datalink) ?: continue
             val (pktType, payload) = packet
 
             if (pktType == 4) { // HCI Event
@@ -197,19 +199,19 @@ object BtsnoopParser {
         return ParseReport(frames, connections, total, truncated)
     }
 
-    private fun splitPacket(data: ByteArray, flags: Int): Pair<Int, ByteArray>? {
+    private fun splitPacket(data: ByteArray, flags: Int, datalink: Int): Pair<Int, ByteArray>? {
         if (data.isEmpty()) return null
+        val first = data[0].toInt() and 0xFF
+        // datalink 1002 = HCI UART (H4), так пишет Android: тип первым байтом записи.
+        if (datalink == DATALINK_H4 && first in 1..4) {
+            return first to data.copyOfRange(1, data.size)
+        }
+        // Иначе тип восстанавливается из flags: бит 1 = 0 → ACL, 1 → command (бит 0 = 0)
+        // или event (бит 0 = 1).
         return when {
-            // Android 9+: тип пакета в битах 9+ (0=cmd, 1=ACL, 2=SCO, 3=event, 4=ISO),
-            // направление — бит 0. Проверяем оба старших бита: 0x200 = ACL, 0x100 = команда.
-            // (Только 0x100 проверять нельзя: у команды тип 0, и лог был бы нечитаем.)
-            // Android 9+: flags = (тип << 9) | направление, префикса типа в данных нет.
-            // 0=command, 1=ACL, 2=SCO, 3=event, 4=ISO.
-            (flags shr 9) != 0 -> ((flags shr 9) and 0x1F) to data
-            // H4/UART: тип первым байтом.
-            data[0].toInt() in 1..5 -> data[0].toInt() to data.copyOfRange(1, data.size)
-            // Старый btsnoop_hci: тип в битах 1..3.
-            else -> ((flags shr 1) and 0x0F) to data
+            flags and 0x02 == 0 -> 2 to data
+            flags and 0x01 != 0 -> 4 to data
+            else -> 1 to data
         }
     }
 

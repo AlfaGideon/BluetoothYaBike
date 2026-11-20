@@ -53,6 +53,10 @@ jobs:
       - name: Юнит-тесты
         run: ./gradlew --no-daemon --console=plain testDebugUnitTest
 
+      - name: Причина падения тестов
+        if: failure()
+        run: python3 .github/scripts/annotate_tests.py
+
       - name: Имя артефакта
         id: meta
         run: |
