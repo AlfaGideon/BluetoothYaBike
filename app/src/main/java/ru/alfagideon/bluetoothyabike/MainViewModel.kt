@@ -33,10 +33,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     /** null = писать во все writable-характеристики. */
     val target: StateFlow<CharInfo?> = _target.asStateFlow()
 
-    init {
-        scanner.onScanFailed = { _scanning.value = false }
-    }
-
     private var onlyNamed = true
     private val allDevices = LinkedHashMap<String, ScanDevice>()
 
@@ -86,6 +82,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         },
         onError = { message -> appendLog(LogEntry(System.currentTimeMillis(), LogKind.ERROR, message)) },
     )
+
+    init {
+        // Скан мог остановиться сам (ошибка адаптера) — сбрасываем кнопку в UI.
+        scanner.onScanFailed = { _scanning.value = false }
+    }
 
     fun connectedAddress(): String? = connectedAddress
 
