@@ -12,6 +12,11 @@
     <!-- Android 11 и ниже нужен доступ к геолокации для поиска BLE-устройств -->
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" android:maxSdkVersion="30" />
 
+    <!-- Не выдаётся обычным приложениям: нужна только для «Включить журнал HCI сам».
+         Один раз по USB: adb shell pm grant ru.alfagideon.bluetoothyabike android.permission.WRITE_SECURE_SETTINGS
+         Без неё приложение просто откроет нужный экран настроек. -->
+    <uses-permission android:name="android.permission.WRITE_SECURE_SETTINGS" />
+
     <uses-feature android:name="android.hardware.bluetooth_le" android:required="true" />
 
     <application

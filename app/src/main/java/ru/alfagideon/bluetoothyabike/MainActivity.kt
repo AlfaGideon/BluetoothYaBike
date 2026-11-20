@@ -134,17 +134,64 @@ class MainActivity : AppCompatActivity() {
         binding.btnAutoPick.setOnClickListener { viewModel.toggleAutoPick() }
     }
 
-    /** Выбор bugreport-архива или btsnoop-файла и разбор найденных кадров. */
+    /** Мастер захвата: что можно включить самим, что открыть одним тапом, где разобрать. */
     private fun showHciImport() {
-        AlertDialog.Builder(this)
-            .setTitle(R.string.hci_import_title)
-            .setMessage(R.string.hci_import_note)
-            .setPositiveButton(R.string.hci_import_pick) { _, _ ->
-                pickHciLog.launch(arrayOf("application/zip", "application/octet-stream", "*/*"))
+        val view = layoutInflater.inflate(R.layout.dialog_capture, null)
+        val tvStatus = view.findViewById<android.widget.TextView>(R.id.tvCaptureStatus)
+        val btnEnable = view.findViewById<android.widget.Button>(R.id.btnEnableLog)
+
+        fun renderStatus() {
+            val enabled = HciLogControl.isEnabled(this)
+            tvStatus.text = when {
+                HciLogControl.canWrite(this) && enabled == true -> getString(R.string.capture_state_granted)
+                enabled == true -> getString(R.string.capture_state_on)
+                enabled == false -> getString(R.string.capture_state_off)
+                else -> getString(R.string.capture_state_unknown)
             }
+            btnEnable.isEnabled = !(enabled == true)
+        }
+        renderStatus()
+
+        val dialog = AlertDialog.Builder(this)
+            .setTitle(R.string.capture_title)
+            .setView(view)
             .setNeutralButton(R.string.hci_import_show) { _, _ -> showHciFrames() }
             .setNegativeButton(android.R.string.cancel, null)
-            .show()
+            .create()
+
+        btnEnable.setOnClickListener {
+            if (HciLogControl.canWrite(this)) {
+                HciLogControl.setEnabled(this, true)
+                toast(getString(R.string.capture_grant_now))
+            } else {
+                toast(getString(R.string.capture_need_grant, HciLogControl.adbGrantCommand(packageName)))
+            }
+            renderStatus()
+        }
+        view.findViewById<android.widget.Button>(R.id.btnOpenDev).setOnClickListener {
+            if (!HciLogControl.openDeveloperSettings(this)) toast("Нет экрана «Для разработчиков»")
+        }
+        view.findViewById<android.widget.Button>(R.id.btnOpenBt).setOnClickListener {
+            if (!HciLogControl.openBluetoothSettings(this)) toast("Нет настроек Bluetooth")
+        }
+        view.findViewById<android.widget.Button>(R.id.btnOpenPro).setOnClickListener {
+            if (HciLogControl.openOfficialApp(this) == null) {
+                toast(getString(R.string.capture_pro_missing))
+            }
+        }
+        view.findViewById<android.widget.Button>(R.id.btnRootRead).setOnClickListener {
+            toast(if (HciLogControl.hasRoot()) "Root есть, читаю лог…" else getString(R.string.capture_no_root))
+            viewModel.readHciLogAsRoot(
+                onDone = { ok ->
+                    toast(if (ok) getString(R.string.capture_log_read_ok) else "Лог через root не найден")
+                    if (ok) showHciFrames()
+                },
+            )
+        }
+        view.findViewById<android.widget.Button>(R.id.btnPickZip).setOnClickListener {
+            pickHciLog.launch(arrayOf("application/zip", "application/octet-stream", "*/*"))
+        }
+        dialog.show()
     }
 
     private fun showHciFrames() {

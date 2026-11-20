@@ -16,6 +16,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /**
  * Держит BLE-клиент, сканнер и весь UI-стейт. Переживает поворот экрана,
@@ -294,6 +295,27 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         )
         viewModelScope.launch(Dispatchers.IO) {
             client.send(bytes, info, withResponse = true)
+        }
+    }
+
+    /** Читает btsnoop из системной папки через root (если он есть). */
+    fun readHciLogAsRoot(onDone: (Boolean) -> Unit) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val bytes = HciLogControl.readLogAsRoot()
+            if (bytes == null) {
+                withContext(Dispatchers.Main) { onDone(false) }
+                return@launch
+            }
+            val report = BtsnoopParser.parse(bytes, connectedAddress)
+            _hciReport.value = report
+            appendLog(
+                LogEntry(
+                    System.currentTimeMillis(),
+                    LogKind.OK,
+                    "HCI-лог (root): ATT-кадров ${report.frames.size}, записей ${report.writes.size}",
+                ),
+            )
+            withContext(Dispatchers.Main) { onDone(true) }
         }
     }
 
