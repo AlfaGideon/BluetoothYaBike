@@ -90,8 +90,8 @@ jobs:
           files: |
             app/build/outputs/apk/release/app-release.apk
             app/build/outputs/apk/debug/app-debug.apk
-          prerelease: true
-          make_latest: false
+          prerelease: false
+          make_latest: true
 
   # Ручной запуск из ветки: свежий APK всегда доступен как "последний успешный артефакт".
   # Скачать: Actions -> нужный run -> Artifacts -> BluetoothYaBike-<sha>.zip
