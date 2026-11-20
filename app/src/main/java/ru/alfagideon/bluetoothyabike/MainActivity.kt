@@ -29,12 +29,18 @@ class MainActivity : AppCompatActivity() {
     private lateinit var deviceAdapter: DeviceAdapter
     private lateinit var logAdapter: LogAdapter
 
+    /** Действие, которое ждало выдачи разрешений (скан, подключение, включение BT). */
+    private var pendingAction: (() -> Unit)? = null
+
     private val requestPermissions =
         registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { result ->
             val denied = result.filterValues { !it }.keys
             if (denied.isEmpty()) {
-                viewModel.startScan()
+                val action = pendingAction
+                pendingAction = null
+                action?.invoke()
             } else {
+                pendingAction = null
                 toast("Без разрешений Bluetooth не заработает: $denied")
             }
         }
@@ -289,6 +295,7 @@ class MainActivity : AppCompatActivity() {
             onGranted?.invoke()
             true
         } else {
+            pendingAction = onGranted
             requestPermissions.launch(requiredPermissions())
             false
         }
