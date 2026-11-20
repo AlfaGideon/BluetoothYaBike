@@ -74,6 +74,7 @@ class MainActivity : AppCompatActivity() {
 
         binding.btnDisconnect.setOnClickListener { viewModel.disconnect() }
         binding.btnGatt.setOnClickListener { showGatt() }
+        binding.btnReadAll.setOnClickListener { viewModel.readAll() }
         binding.btnBond.setOnClickListener { bondLastDevice() }
 
         binding.btnSend.setOnClickListener { sendFromInput() }
@@ -122,6 +123,11 @@ class MainActivity : AppCompatActivity() {
                 launch {
                     viewModel.state.collect { state ->
                         renderState(state)
+                    }
+                }
+                launch {
+                    viewModel.snapshot.collect { snap ->
+                        binding.btnReadAll.isEnabled = snap.chars.isNotEmpty()
                     }
                 }
                 launch {

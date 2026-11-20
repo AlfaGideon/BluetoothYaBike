@@ -205,16 +205,22 @@ class BikeBleClient(
         val targets = if (target != null) {
             listOfNotNull(charsByKey[target.key]).map { CharInfo(target.serviceUuid, target.uuid, target.properties, target.instance) to it }
         } else {
-            charsByKey.values
-                .filter { it.properties and (BluetoothGattCharacteristic.PROPERTY_WRITE or BluetoothGattCharacteristic.PROPERTY_WRITE_NO_RESPONSE) != 0 }
-                .mapIndexed { index, c -> CharInfo(c.service?.uuid ?: UUID(0, 0), c.uuid, c.properties, index) to c }
+            val writable = charsByKey.values.filter {
+                it.properties and (BluetoothGattCharacteristic.PROPERTY_WRITE or BluetoothGattCharacteristic.PROPERTY_WRITE_NO_RESPONSE) != 0
+            }
+            val safe = writable.filterNot { isDangerous(it.service?.uuid ?: UUID(0, 0)) }
+            val skipped = writable.size - safe.size
+            if (skipped > 0) {
+                log(LogKind.WARN, "Пропущено $skipped характеристик сервисов прошивки/служебных (DFU/OTA) — их можно выбрать вручную в «GATT»")
+            }
+            safe.mapIndexed { index, c -> CharInfo(c.service?.uuid ?: UUID(0, 0), c.uuid, c.properties, index) to c }
         }
         if (targets.isEmpty()) {
             log(LogKind.ERROR, "На устройстве нет writable-характеристик")
             return
         }
         if (target == null) {
-            log(LogKind.INFO, "Широковещательная запись ${Hex.toHex(payload)} во все writable-характеристики (${targets.size})")
+            log(LogKind.INFO, "Широковещательная запись ${Hex.toHex(payload)} во все безопасные writable-характеристики (${targets.size})")
         }
         targets.forEachIndexed { index, (info, characteristic) ->
             try {
@@ -437,6 +443,50 @@ class BikeBleClient(
 
     companion object {
         val CCCD: UUID = UUID.fromString("00002902-0000-1000-8000-00805f9b34fb")
+
+        /** Стандартные и сервисные UUID, куда не стоит писать вслепую. */
+        private val PROTECTED_SERVICES: Set<UUID> = setOf(
+            UUID.fromString("00001800-0000-1000-8000-00805f9b34fb"), // Generic Access
+            UUID.fromString("00001801-0000-1000-8000-00805f9b34fb"), // Generic Attribute
+            UUID.fromString("00001804-0000-1000-8000-00805f9b34fb"), // TX Power
+            UUID.fromString("00001805-0000-1000-8000-00805f9b34fb"), // Current Time
+            UUID.fromString("0000180a-0000-1000-8000-00805f9b34fb"), // Device Information
+            UUID.fromString("0000180f-0000-1000-8000-00805f9b34fb"), // Battery
+            UUID.fromString("00001816-0000-1000-8000-00805f9b34fb"), // Cycling Speed and Cadence
+            UUID.fromString("00001818-0000-1000-8000-00805f9b34fb"), // Cycling Power
+            UUID.fromString("00001826-0000-1000-8000-00805f9b34fb"), // Fitness Machine
+            UUID.fromString("0000fe59-0000-1000-8000-00805f9b34fb"), // Nordic Secure DFU
+            UUID.fromString("00001530-1212-efde-1523-785feabcd123"), // Nordic legacy DFU
+            UUID.fromString("8ec90001-f315-4f60-9fb8-838830daea50"), // Nordic buttonless DFU
+            UUID.fromString("8ec90002-f315-4f60-9fb8-838830daea50"),
+            UUID.fromString("8ec90003-f315-4f60-9fb8-838830daea50"),
+            UUID.fromString("0000fef5-0000-1000-8000-00805f9b34fb"), // Dialog OTA
+            UUID.fromString("0000ff00-0000-1000-8000-00805f9b34fb"),
+        )
+
+        /**
+         * true, если это сервис прошивки (DFU/OTA) или служебный GAP/GATT:
+         * запись в них «наугад» может перевести модуль в режим обновления.
+         */
+        fun isDangerous(serviceUuid: UUID): Boolean = serviceUuid in PROTECTED_SERVICES
+
+        /**
+         * Гипотеза о канале протокола: характеристика, в которую можно писать и из которой
+         * приходят уведомления, в пользовательском (128-битном) сервисе.
+         * Это лишь подсказка для UI, а не утверждение о протоколе байка.
+         */
+        fun suggestTarget(chars: List<CharInfo>): CharInfo? {
+            fun score(c: CharInfo): Int {
+                var s = 0
+                if (c.canWriteNoResp || c.canWrite) s += 2
+                if (c.canNotify || c.canIndicate) s += 3
+                if (c.serviceUuid.toString().startsWith("0000")) s -= 2
+                if (c.serviceUuid == TEXT_SERVICE) s -= 1
+                if (isDangerous(c.serviceUuid)) s -= 10
+                return s
+            }
+            return chars.maxByOrNull { score(it) }?.takeIf { score(it) > 0 }
+        }
 
         val TEXT_SERVICE: UUID = UUID.fromString("6e400001-b5a3-f393-e0a9-e50e24dcca9e")
         val TEXT_RX: UUID = UUID.fromString("6e400002-b5a3-f393-e0a9-e50e24dcca9e")

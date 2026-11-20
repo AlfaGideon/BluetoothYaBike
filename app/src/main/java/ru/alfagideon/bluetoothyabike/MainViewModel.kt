@@ -36,9 +36,28 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private var onlyNamed = true
     private val allDevices = LinkedHashMap<String, ScanDevice>()
 
+    private var targetAutoChosen = false
+
     private val client = BikeBleClient(application) { entry ->
         if (entry.kind == LogKind.OK && entry.text.startsWith("Подключено")) {
             connectedAddress = entry.text.substringAfter("Подключено к ").substringBefore(".")
+        }
+        // После дампа GATT выбираем наиболее вероятный канал протокола, но только один раз
+        // за подключение: ручной выбор пользователя не перетираем.
+        if (entry.kind == LogKind.OK && entry.text.startsWith("GATT:") && !targetAutoChosen) {
+            val suggestion = BikeBleClient.suggestTarget(snapshot.value.chars)
+            if (suggestion != null) {
+                targetAutoChosen = true
+                _target.value = suggestion
+                appendLog(
+                    LogEntry(
+                        System.currentTimeMillis(),
+                        LogKind.OK,
+                        "Предположительный канал протокола: ${suggestion.describe()} " +
+                            "(сменить — кнопка «GATT»)",
+                    ),
+                )
+            }
         }
         appendLog(entry)
     }
@@ -75,6 +94,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         arrayOf(android.Manifest.permission.ACCESS_FINE_LOCATION)
     }
 
+    /** Прочитать все читаемые характеристики заново (снимок состояния после действий). */
+    fun readAll() {
+        appendLog(LogEntry(System.currentTimeMillis(), LogKind.INFO, "Чтение всех характеристик…"))
+        client.readAll()
+    }
+
     fun startScan() {
         appendLog(LogEntry(System.currentTimeMillis(), LogKind.INFO, "Запуск сканирования…"))
         _scanning.value = true
@@ -102,6 +127,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun connect(device: BluetoothDevice) {
         connectedAddress = device.address
+        targetAutoChosen = false
+        _target.value = null
         client.connect(device)
     }
 
@@ -122,6 +149,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun setTarget(info: CharInfo?) {
+        targetAutoChosen = true
         _target.value = info
         appendLog(
             LogEntry(

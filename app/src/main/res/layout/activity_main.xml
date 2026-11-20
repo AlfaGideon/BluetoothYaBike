@@ -148,6 +148,16 @@
                 android:textSize="11sp" />
 
             <Button
+                android:id="@+id/btnReadAll"
+                style="@style/Widget.Material3.Button.TextButton"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:enabled="false"
+                android:minWidth="0dp"
+                android:text="@string/btn_read_all"
+                android:textSize="11sp" />
+
+            <Button
                 android:id="@+id/btnDisconnect"
                 style="@style/Widget.Material3.Button.TextButton"
                 android:layout_width="wrap_content"

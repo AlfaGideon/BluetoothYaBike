@@ -50,9 +50,8 @@ jobs:
         if: failure()
         run: python3 .github/scripts/annotate_build.py
 
-      - name: Проверка тестов
-        run: ./gradlew --no-daemon testDebugUnitTest
-        continue-on-error: true
+      - name: Юнит-тесты
+        run: ./gradlew --no-daemon --console=plain testDebugUnitTest
 
       - name: Имя артефакта
         id: meta
