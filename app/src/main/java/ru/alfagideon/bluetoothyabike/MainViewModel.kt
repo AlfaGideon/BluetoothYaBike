@@ -106,12 +106,14 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     /** Ищет устройство по адресу, чтобы UI мог запустить сопряжение. */
-    fun remoteDevice(context: android.content.Context, address: String?): BluetoothDevice? = try {
+    fun remoteDevice(context: android.content.Context, address: String?): BluetoothDevice? {
         if (address == null) return null
-        val manager = context.getSystemService(android.bluetooth.BluetoothManager::class.java)
-        manager?.adapter?.getRemoteDevice(address)
-    } catch (e: Exception) {
-        null
+        return try {
+            val manager = context.getSystemService(android.bluetooth.BluetoothManager::class.java)
+            manager?.adapter?.getRemoteDevice(address)
+        } catch (e: Exception) {
+            null
+        }
     }
 
     fun disconnect() {

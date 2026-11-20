@@ -98,8 +98,13 @@ class MainActivity : AppCompatActivity() {
         lifecycleScope.launch {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
                 launch {
-                    viewModel.log.collect { entry ->
-                        logAdapter.append(entry)
+                    viewModel.log.collect { entries ->
+                        val known = logAdapter.itemCount
+                        if (known == 0) {
+                            entries.takeLast(2000).forEach(logAdapter::append)
+                        } else {
+                            entries.drop(known).forEach(logAdapter::append)
+                        }
                         binding.rvLog.scrollToPosition(logAdapter.itemCount - 1)
                     }
                 }
