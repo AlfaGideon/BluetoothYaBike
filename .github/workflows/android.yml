@@ -93,6 +93,7 @@ jobs:
           body: |
             APK, собранный из ${{ github.ref_name }} @ ${{ github.sha }}.
             Скачать: `app-release.apk` (release-подпись debug-ключом) или `app-debug.apk`.
+            Обновлено: ${{ github.event.head_commit.timestamp }}
           files: |
             app/build/outputs/apk/release/app-release.apk
             app/build/outputs/apk/debug/app-debug.apk
