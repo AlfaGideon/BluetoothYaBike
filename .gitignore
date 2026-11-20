@@ -1,0 +1,16 @@
+# Gradle / Android
+.gradle/
+build/
+local.properties
+captures/
+.externalNativeBuild/
+.cxx/
+*.iml
+.idea/
+.output
+.kotlin/
+
+# Логи и АПК
+*.apk
+*.aab
+*.hprof

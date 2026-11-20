@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">BT · Я.Байк</string>
+    <string name="app_subtitle">BLE-исследователь: скан, GATT, обмен кадрами</string>
+
+    <string name="hint_hex">hex, напр.: 01 02 FF</string>
+    <string name="hint_text">текст UTF-8</string>
+
+    <string name="scan_start">Сканировать</string>
+    <string name="scan_stop">Стоп</string>
+    <string name="clear">Очистить</string>
+    <string name="only_named">только с именем</string>
+    <string name="export">Экспорт</string>
+    <string name="send">Отправить</string>
+    <string name="presets">Тест-кадры</string>
+    <string name="replay">Повторить RX</string>
+    <string name="no_response">без ответа</string>
+    <string name="as_text">как текст</string>
+
+    <string name="devices_header">Устройства</string>
+    <string name="log_header">Журнал BLE</string>
+    <string name="no_device">нет устройства</string>
+
+    <string name="btn_disconnect">Отключить</string>
+    <string name="btn_bond">Сопряжение</string>
+    <string name="btn_gatt">GATT</string>
+    <string name="btn_read_all">Прочитать всё</string>
+
+    <string name="toast_hex_error">Не понял hex: нужны пары символов 0-9 A-F</string>
+    <string name="toast_no_char">Сначала подключитесь к устройству</string>
+    <string name="toast_saved">Сохранено: %1$s</string>
+    <string name="toast_copied">MAC скопирован</string>
+    <string name="dialog_presets_title">Тест-кадры (гипотезы, не готовые команды)</string>
+    <string name="dialog_presets_note">Эти кадры не являются реализацией протокола Яндекса. Они нужны, чтобы посмотреть, как байк реагирует на простые записи. Готовый протокол появится только после анализа трафика официального приложения (см. docs/EXPERIMENT.md).</string>
+
+    <string-array name="preset_names">
+        <item>00 — пустой байт</item>
+        <item>01</item>
+        <item>02</item>
+        <item>03</item>
+        <item>FE</item>
+        <item>FF</item>
+        <item>01 00 00 00</item>
+        <item>AA 55</item>
+        <item>55 AA</item>
+        <item>текст «UNLOCK»</item>
+        <item>текст «STATUS»</item>
+    </string-array>
+
+    <string-array name="preset_values">
+        <item>00</item>
+        <item>01</item>
+        <item>02</item>
+        <item>03</item>
+        <item>FE</item>
+        <item>FF</item>
+        <item>01 00 00 00</item>
+        <item>AA 55</item>
+        <item>55 AA</item>
+        <item>55 4E 4C 4F 43 4B</item>
+        <item>53 54 41 54 55 53</item>
+    </string-array>
+</resources>

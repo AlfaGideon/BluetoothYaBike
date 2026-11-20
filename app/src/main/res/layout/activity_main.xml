@@ -1,0 +1,300 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/bg"
+    android:fitsSystemWindows="true"
+    android:orientation="vertical"
+    android:paddingHorizontal="12dp"
+    android:paddingTop="8dp">
+
+    <!-- Заголовок -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical">
+
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:orientation="vertical">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/app_name"
+                android:textColor="@color/text_primary"
+                android:textSize="20sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/app_subtitle"
+                android:textColor="@color/text_secondary"
+                android:textSize="11sp" />
+        </LinearLayout>
+
+        <TextView
+            android:id="@+id/tvAdapterState"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:background="@drawable/bg_chip"
+            android:paddingHorizontal="10dp"
+            android:paddingVertical="5dp"
+            android:text="BT…"
+            android:textColor="@color/warn"
+            android:textSize="11sp" />
+    </LinearLayout>
+
+    <!-- Поиск устройств -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="6dp"
+        android:gravity="center_vertical"
+        android:orientation="horizontal">
+
+        <TextView
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="@string/devices_header"
+            android:textColor="@color/accent"
+            android:textSize="12sp"
+            android:textStyle="bold" />
+
+        <CheckBox
+            android:id="@+id/cbOnlyNamed"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:checked="true"
+            android:text="@string/only_named"
+            android:textColor="@color/text_secondary"
+            android:textSize="11sp" />
+
+        <Button
+            android:id="@+id/btnClear"
+            style="@style/Widget.Material3.Button.TextButton"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:minWidth="0dp"
+            android:text="@string/clear"
+            android:textSize="11sp" />
+
+        <Button
+            android:id="@+id/btnScan"
+            style="@style/Widget.Material3.Button.TonalButton"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:minWidth="0dp"
+            android:text="@string/scan_start"
+            android:textSize="12sp" />
+    </LinearLayout>
+
+    <androidx.recyclerview.widget.RecyclerView
+        android:id="@+id/rvDevices"
+        android:layout_width="match_parent"
+        android:layout_height="150dp"
+        android:layout_marginTop="2dp"
+        android:background="@drawable/bg_card"
+        android:clipToPadding="false"
+        android:paddingVertical="4dp" />
+
+    <!-- Подключение -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="6dp"
+        android:background="@drawable/bg_card"
+        android:orientation="vertical"
+        android:padding="8dp">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <TextView
+                android:id="@+id/tvConnected"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="@string/no_device"
+                android:textColor="@color/text_primary"
+                android:textSize="13sp"
+                android:textStyle="bold" />
+
+            <Button
+                android:id="@+id/btnBond"
+                style="@style/Widget.Material3.Button.TextButton"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:minWidth="0dp"
+                android:text="@string/btn_bond"
+                android:textSize="11sp" />
+
+            <Button
+                android:id="@+id/btnGatt"
+                style="@style/Widget.Material3.Button.TonalButton"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:minWidth="0dp"
+                android:text="@string/btn_gatt"
+                android:textSize="11sp" />
+
+            <Button
+                android:id="@+id/btnDisconnect"
+                style="@style/Widget.Material3.Button.TextButton"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:minWidth="0dp"
+                android:text="@string/btn_disconnect"
+                android:textSize="11sp" />
+        </LinearLayout>
+
+        <TextView
+            android:id="@+id/tvStatus"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Выберите байк в списке — подключение выполнится автоматически."
+            android:textColor="@color/text_secondary"
+            android:textSize="11sp" />
+    </LinearLayout>
+
+    <!-- Отправка кадров -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="6dp"
+        android:background="@drawable/bg_card"
+        android:orientation="vertical"
+        android:padding="8dp">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <com.google.android.material.textfield.TextInputLayout
+                android:id="@+id/tilHex"
+                style="@style/Widget.Material3.TextInputLayout.OutlinedBox.Dense"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:hint="@string/hint_hex">
+
+                <com.google.android.material.textfield.TextInputEditText
+                    android:id="@+id/etHex"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:inputType="textVisiblePassword"
+                    android:maxLines="3"
+                    android:textSize="13sp"
+                    android:typeface="monospace" />
+            </com.google.android.material.textfield.TextInputLayout>
+
+            <Button
+                android:id="@+id/btnSend"
+                style="@style/Widget.Material3.Button"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="6dp"
+                android:minWidth="0dp"
+                android:text="@string/send"
+                android:textSize="12sp" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <CheckBox
+                android:id="@+id/cbAsText"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/as_text"
+                android:textColor="@color/text_secondary"
+                android:textSize="11sp" />
+
+            <CheckBox
+                android:id="@+id/cbNoResponse"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/no_response"
+                android:textColor="@color/text_secondary"
+                android:textSize="11sp" />
+
+            <Button
+                android:id="@+id/btnPresets"
+                style="@style/Widget.Material3.Button.TextButton"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:minWidth="0dp"
+                android:text="@string/presets"
+                android:textSize="11sp" />
+
+            <Button
+                android:id="@+id/btnReplay"
+                style="@style/Widget.Material3.Button.TextButton"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:minWidth="0dp"
+                android:text="@string/replay"
+                android:textSize="11sp" />
+        </LinearLayout>
+
+        <TextView
+            android:id="@+id/tvTarget"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Цель записи: все writable-характеристики"
+            android:textColor="@color/text_secondary"
+            android:textSize="10sp" />
+    </LinearLayout>
+
+    <!-- Журнал -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="6dp"
+        android:gravity="center_vertical"
+        android:orientation="horizontal">
+
+        <TextView
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="@string/log_header"
+            android:textColor="@color/accent"
+            android:textSize="12sp"
+            android:textStyle="bold" />
+
+        <Button
+            android:id="@+id/btnExport"
+            style="@style/Widget.Material3.Button.TextButton"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:minWidth="0dp"
+            android:text="@string/export"
+            android:textSize="11sp" />
+    </LinearLayout>
+
+    <androidx.recyclerview.widget.RecyclerView
+        android:id="@+id/rvLog"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_marginTop="2dp"
+        android:layout_weight="1"
+        android:background="@drawable/bg_card"
+        android:clipToPadding="false"
+        android:padding="6dp" />
+
+</LinearLayout>

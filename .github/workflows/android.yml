@@ -1,0 +1,75 @@
+name: Android CI
+
+on:
+  push:
+    branches: ['**']
+    tags: ['v*']
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Собрать APK
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Gradle cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: gradle-${{ runner.os }}-${{ hashFiles('**/*.gradle.kts', 'gradle/wrapper/gradle-wrapper.properties') }}
+          restore-keys: |
+            gradle-${{ runner.os }}-
+
+      - name: Gradle wrapper
+        run: chmod +x ./gradlew
+
+      - name: Сборка debug + release APK
+        run: ./gradlew --no-daemon assembleDebug assembleRelease
+
+      - name: Проверка тестов
+        run: ./gradlew --no-daemon testDebugUnitTest
+        continue-on-error: true
+
+      - name: Имя артефакта
+        id: meta
+        run: |
+          SHORT_SHA="${GITHUB_SHA::7}"
+          echo "name=BluetoothYaBike-${SHORT_SHA}" >> "$GITHUB_OUTPUT"
+          echo "tag=$(date -u +%Y%m%d-%H%M%S)" >> "$GITHUB_OUTPUT"
+
+      - name: Загрузка APK в артефакты
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.meta.outputs.name }}
+          path: |
+            app/build/outputs/apk/debug/*.apk
+            app/build/outputs/apk/release/*.apk
+          if-no-files-found: error
+
+      - name: Релиз по тегу
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: app/build/outputs/apk/release/*.apk
+          generate_release_notes: true
+
+  # Ручной запуск из ветки: свежий APK всегда доступен как "последний успешный артефакт".
+  # Скачать: Actions -> нужный run -> Artifacts -> BluetoothYaBike-<sha>.zip
