@@ -2,35 +2,88 @@ package ru.alfagideon.bluetoothyabike
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.ByteArrayOutputStream
+import java.nio.ByteBuffer
+import java.nio.ByteOrder
 import java.util.zip.ZipEntry
 import java.util.zip.ZipOutputStream
 
+/**
+ * Эталонный btsnoop собирается кодом в точном формате Android:
+ * datalink 1002 (HCI UART, H4), каждая запись начинается байтом типа
+ * (0x02 ACL, 0x04 event), в flags только бит направления.
+ *
+ * Внутри: LE Connection Complete для AA:BB:CC:DD:EE:FF (handle 0x0041),
+ * ATT Write Command (handle 0x0011, 01 02 03) и ATT Notification
+ * (handle 0x0022, DE AD BE EF).
+ */
 class BtsnoopParserTest {
-
-    /**
-     * Эталонный btsnoop в точном формате Android (datalink 1002 = H4: каждая запись
-     * начинается байтом типа 0x04/0x02, в flags только направление):
-     *  - LE Connection Complete (event) для AA:BB:CC:DD:EE:FF, handle 0x0041;
-     *  - ATT Write Command: handle 0x0011, значение 01 02 03;
-     *  - ATT Notification: handle 0x0022, значение DE AD BE EF.
-     * Сгенерирован отдельным скриптом и сверен с tools/parse_btsnoop.py.
-     */
-    private val golden = java.util.Base64.getDecoder().decode(
-        "YnRzbm9vcAAAAAABAAAD6gAAAA4AAAAOAAAAAwAAAAAAAAAAAA9KEAQ+AQBBAAAA/+7dzLuqAAAADwAAAA8AAAAA" +
-            "AAAAAAAAAA9R4AJBIAoABgAEABIRAAECAwAAABAAAAAQAAAAAQAAAAAAAAAAAA9ZsAJBIAsABwAEABsiAN6t" +
-            "vu8=",
-    )
 
     private val mac = "AA:BB:CC:DD:EE:FF"
 
+    private fun buildSample(): ByteArray {
+        val out = ByteArrayOutputStream()
+        out.write("btsnoop\u0000".toByteArray(Charsets.ISO_8859_1))
+        out.write(
+            ByteBuffer.allocate(8).order(ByteOrder.BIG_ENDIAN)
+                .putInt(1)      // version
+                .putInt(1002)   // datalink: HCI UART (H4)
+                .array(),
+        )
+
+        var ts = 1_000_000L
+
+        fun record(data: ByteArray, flags: Int) {
+            ts += 2_000
+            out.write(
+                ByteBuffer.allocate(24).order(ByteOrder.BIG_ENDIAN)
+                    .putInt(data.size)  // original length
+                    .putInt(data.size)  // included length
+                    .putInt(flags)      // 0x01 = controller → host, 0x00 = host → controller
+                    .putInt(0)          // dropped packets
+                    .putLong(ts)        // timestamp, мкс
+                    .array(),
+            )
+            out.write(data)
+        }
+
+        fun acl(handle: Int, att: ByteArray, fromDevice: Boolean) {
+            val l2cap = ByteBuffer.allocate(4).order(ByteOrder.LITTLE_ENDIAN)
+                .putShort(att.size.toShort())
+                .putShort(4) // CID: ATT
+                .array() + att
+            // H4: байт типа 0x02 (ACL) + handle|pb + длина + L2CAP
+            val hci = byteArrayOf(0x02) +
+                ByteBuffer.allocate(4).order(ByteOrder.LITTLE_ENDIAN)
+                    .putShort((handle or (0x2 shl 12)).toShort()) // PB = 2, начало L2CAP
+                    .putShort(l2cap.size.toShort())
+                    .array() + l2cap
+            record(hci, if (fromDevice) 0x01 else 0x00)
+        }
+
+        // LE Meta Event → LE Connection Complete
+        val addr = byteArrayOf(0xFF.toByte(), 0xEE.toByte(), 0xDD.toByte(), 0xCC.toByte(), 0xBB.toByte(), 0xAA.toByte())
+        val connect = byteArrayOf(0x04, 0x3E, 0x01, 0x00, 0x41, 0x00, 0x00, 0x00) + addr
+        record(connect, 0x01)
+
+        acl(0x0041, byteArrayOf(0x12, 0x11, 0x00, 0x01, 0x02, 0x03), fromDevice = false)
+        acl(
+            0x0041,
+            byteArrayOf(0x1B, 0x22, 0x00, 0xDE.toByte(), 0xAD.toByte(), 0xBE.toByte(), 0xEF.toByte()),
+            fromDevice = true,
+        )
+        return out.toByteArray()
+    }
+
     @Test
     fun parsesConnectionAndAttFrames() {
-        val report = BtsnoopParser.parse(golden)
+        val report = BtsnoopParser.parse(buildSample())
         assertEquals(1, report.connections.size)
         assertEquals(mac, report.connections.first().second)
+        assertEquals(3, report.totalPackets)
         assertEquals(2, report.frames.size)
 
         val write = report.frames[0]
@@ -48,16 +101,19 @@ class BtsnoopParserTest {
 
     @Test
     fun macFilterKeepsOnlyMatchingConnection() {
-        assertEquals(2, BtsnoopParser.parse(golden, mac).frames.size)
-        assertEquals(2, BtsnoopParser.parse(golden, mac.lowercase()).frames.size)
-        assertEquals(0, BtsnoopParser.parse(golden, "11:22:33:44:55:66").frames.size)
+        assertEquals(2, BtsnoopParser.parse(buildSample(), mac).frames.size)
+        assertEquals(2, BtsnoopParser.parse(buildSample(), mac.lowercase()).frames.size)
+        // Фильтр по MAC не должен применяться к соединениям, которых нет в логе.
+        assertEquals(2, BtsnoopParser.parse(buildSample(), null).frames.size)
+        assertEquals(0, BtsnoopParser.parse(buildSample(), "11:22:33:44:55:66").frames.size)
     }
 
     @Test
     fun uniqueWritesDeduplicates() {
-        val writes = BtsnoopParser.parse(golden).uniqueWrites()
+        val writes = BtsnoopParser.parse(buildSample()).uniqueWrites()
         assertEquals(1, writes.size)
         assertEquals(0x11, writes.first().handle)
+        assertEquals("01 02 03", Hex.toHex(writes.first().value))
     }
 
     @Test
@@ -68,7 +124,7 @@ class BtsnoopParserTest {
             zos.write("noise".toByteArray())
             zos.closeEntry()
             zos.putNextEntry(ZipEntry("FS/data/misc/bluetooth/logs/btsnoop_hci.log"))
-            zos.write(golden)
+            zos.write(buildSample())
             zos.closeEntry()
         }
         val bytes = zip.toByteArray()
@@ -79,12 +135,14 @@ class BtsnoopParserTest {
     }
 
     @Test
-    fun diagnosticsForFailure() {
-        System.err.println("DIAG len=" + golden.size + " hex=" + Hex.toHex(golden))
-        System.err.println("DIAG magic=" + String(golden, 0, 8, Charsets.ISO_8859_1))
-        System.err.println("DIAG datalink=" + ((golden[12].toInt() and 0xFF) shl 24 or ((golden[13].toInt() and 0xFF) shl 16) or ((golden[14].toInt() and 0xFF) shl 8) or (golden[15].toInt() and 0xFF)))
-        val report = BtsnoopParser.parse(golden)
-        System.err.println("DIAG connections=" + report.connections + " frames=" + report.frames.size + " packets=" + report.totalPackets)
+    fun zipWithoutSnoopLogReturnsNull() {
+        val zip = ByteArrayOutputStream()
+        ZipOutputStream(zip).use { zos ->
+            zos.putNextEntry(ZipEntry("bugreport.txt"))
+            zos.write("noise".toByteArray())
+            zos.closeEntry()
+        }
+        assertNull(BtsnoopParser.extractFromZip(zip.toByteArray().inputStream()))
     }
 
     @Test
@@ -96,8 +154,24 @@ class BtsnoopParserTest {
 
     @Test
     fun tableRendersFrames() {
-        val text = BtsnoopParser.parse(golden).table()
+        val text = BtsnoopParser.parse(buildSample()).table()
         assertTrue(text.contains("Write Command"))
         assertTrue(text.contains("01 02 03"))
+    }
+
+    @Test
+    fun h4ServiceHandlesAreSkipped() {
+        // Запись в служебный GAP-handle 0x0001 не должна попадать в список кадров.
+        val out = ByteArrayOutputStream()
+        out.write("btsnoop\u0000".toByteArray(Charsets.ISO_8859_1))
+        out.write(ByteBuffer.allocate(8).order(ByteOrder.BIG_ENDIAN).putInt(1).putInt(1002).array())
+        val att = byteArrayOf(0x52, 0x01, 0x00, 0xAA.toByte())
+        val l2cap = ByteBuffer.allocate(4).order(ByteOrder.LITTLE_ENDIAN).putShort(att.size.toShort()).putShort(4).array() + att
+        val hci = byteArrayOf(0x02) + ByteBuffer.allocate(4).order(ByteOrder.LITTLE_ENDIAN)
+            .putShort(0x2041.toShort()).putShort(l2cap.size.toShort()).array() + l2cap
+        out.write(ByteBuffer.allocate(24).order(ByteOrder.BIG_ENDIAN)
+            .putInt(hci.size).putInt(hci.size).putInt(0).putInt(0).putLong(1L).array())
+        out.write(hci)
+        assertEquals(0, BtsnoopParser.parse(out.toByteArray()).frames.size)
     }
 }
