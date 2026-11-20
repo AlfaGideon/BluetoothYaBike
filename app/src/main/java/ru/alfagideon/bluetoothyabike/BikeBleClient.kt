@@ -496,6 +496,12 @@ class BikeBleClient(
         val TEXT_RX: UUID = UUID.fromString("6e400002-b5a3-f393-e0a9-e50e24dcca9e")
         val TEXT_TX: UUID = UUID.fromString("6e400003-b5a3-f393-e0a9-e50e24dcca9e")
 
+        /** Включён ли Bluetooth и есть ли вообще BLE-адаптер. */
+        fun isBluetoothReady(context: Context): Boolean {
+            val manager = context.getSystemService(Context.BLUETOOTH_SERVICE) as? android.bluetooth.BluetoothManager
+            return manager?.adapter?.isEnabled == true
+        }
+
         /** Есть ли модуль BLE и включён ли Bluetooth. */
         fun adapterState(context: Context): String {
             val manager = context.getSystemService(Context.BLUETOOTH_SERVICE) as? android.bluetooth.BluetoothManager

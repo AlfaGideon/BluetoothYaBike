@@ -39,6 +39,13 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
+    override fun onResume() {
+        super.onResume()
+        if (this::binding.isInitialized) {
+            binding.tvAdapterState.text = BikeBleClient.adapterState(this)
+        }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         binding = ActivityMainBinding.inflate(layoutInflater)
@@ -71,6 +78,20 @@ class MainActivity : AppCompatActivity() {
         }
 
         binding.btnClear.setOnClickListener { deviceAdapter.clear() }
+
+        binding.tvAdapterState.setOnClickListener {
+            if (BikeBleClient.isBluetoothReady(this)) {
+                toast("Bluetooth включён")
+                return@setOnClickListener
+            }
+            ensurePermissions {
+                try {
+                    startActivity(Intent(android.bluetooth.BluetoothAdapter.ACTION_REQUEST_ENABLE))
+                } catch (e: Exception) {
+                    toast("Не удалось запросить включение Bluetooth")
+                }
+            }
+        }
 
         binding.btnDisconnect.setOnClickListener { viewModel.disconnect() }
         binding.btnGatt.setOnClickListener { showGatt() }

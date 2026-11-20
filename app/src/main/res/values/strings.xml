@@ -20,6 +20,9 @@
     <string name="devices_header">Устройства</string>
     <string name="log_header">Журнал BLE</string>
     <string name="no_device">нет устройства</string>
+    <string name="bt_check">BT…</string>
+    <string name="status_initial">Выберите байк в списке — подключение выполнится автоматически.</string>
+    <string name="target_all">Цель записи: все writable-характеристики</string>
 
     <string name="btn_disconnect">Отключить</string>
     <string name="btn_bond">Сопряжение</string>
