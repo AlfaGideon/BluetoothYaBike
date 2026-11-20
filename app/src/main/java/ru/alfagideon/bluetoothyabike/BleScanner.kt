@@ -8,6 +8,8 @@ import android.bluetooth.le.ScanResult
 import android.bluetooth.le.ScanSettings
 import android.content.Context
 import android.os.Build
+import android.os.Handler
+import android.os.Looper
 import android.os.ParcelUuid
 
 data class ScanDevice(
@@ -51,6 +53,12 @@ class BleScanner(
 
     private val found = LinkedHashMap<String, ScanDevice>()
 
+    /** Скан бесконечен по правилам BLE; останавливаем сами, чтобы не жечь батарею. */
+    var autoStopMs: Long = 8_000
+
+    private val handler = Handler(Looper.getMainLooper())
+    private val autoStop = Runnable { stop() }
+
     private val callback = object : ScanCallback() {
         override fun onScanResult(callbackType: Int, result: ScanResult) {
             handle(result)
@@ -85,8 +93,12 @@ class BleScanner(
             .build()
         try {
             found.clear()
+            // Запускаем НЕфильтрованный скан: многие устройства (в том числе IoT-модули)
+            // не отдают своё имя в рекламном пакете, и фильтр по сервисам их бы отбросил.
             s.startScan(null, settings, callback)
             isScanning = true
+            handler.removeCallbacks(autoStop)
+            if (autoStopMs > 0) handler.postDelayed(autoStop, autoStopMs)
         } catch (e: SecurityException) {
             onError("Нет разрешения на сканирование Bluetooth")
         } catch (e: Exception) {
@@ -96,13 +108,18 @@ class BleScanner(
 
     @SuppressLint("MissingPermission")
     fun stop() {
+        handler.removeCallbacks(autoStop)
         if (!isScanning) return
         try {
             scanner?.stopScan(callback)
         } catch (_: Exception) {
         }
         isScanning = false
+        onStopped?.invoke()
     }
+
+    /** Вызывается, когда скан закончился (вручную или по таймауту). */
+    var onStopped: (() -> Unit)? = null
 
     fun snapshot(): List<ScanDevice> = found.values.toList()
 

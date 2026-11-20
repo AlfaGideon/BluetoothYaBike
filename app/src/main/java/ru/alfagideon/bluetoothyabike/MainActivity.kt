@@ -56,9 +56,10 @@ class MainActivity : AppCompatActivity() {
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
-        deviceAdapter = DeviceAdapter { scanDevice ->
-            connectTo(scanDevice)
-        }
+        deviceAdapter = DeviceAdapter(
+            onClick = { scanDevice -> connectTo(scanDevice) },
+            onLongClick = { scanDevice -> copyAddress(scanDevice) },
+        )
         logAdapter = LogAdapter()
 
         binding.rvDevices.layoutManager = LinearLayoutManager(this)
@@ -116,9 +117,19 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
-        binding.cbOnlyNamed.setOnCheckedChangeListener { _, _ ->
-            viewModel.setOnlyNamed(binding.cbOnlyNamed.isChecked)
+        binding.cbOnlyNamed.setOnCheckedChangeListener { _, checked ->
+            viewModel.setShowAll(checked)
         }
+
+        binding.btnRadar.setOnClickListener { viewModel.toggleHub() }
+        binding.btnAutoPick.setOnClickListener { viewModel.toggleAutoPick() }
+    }
+
+    /** Долгое нажатие на карточку — MAC в буфер обмена (нужен для разбора HCI-лога). */
+    private fun copyAddress(device: ScanDevice) {
+        val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as? android.content.ClipboardManager
+        clipboard?.setPrimaryClip(android.content.ClipData.newPlainText("MAC", device.address))
+        toast(getString(R.string.toast_copied))
     }
 
     private fun collectFlows() {
@@ -157,6 +168,23 @@ class MainActivity : AppCompatActivity() {
                 launch {
                     viewModel.snapshot.collect { snap ->
                         binding.btnReadAll.isEnabled = snap.chars.isNotEmpty()
+                    }
+                }
+                launch {
+                    viewModel.hubMode.collect { hub ->
+                        binding.btnRadar.text = getString(if (hub) R.string.radar_stop else R.string.radar_start)
+                    }
+                }
+                launch {
+                    viewModel.autoPick.collect { auto ->
+                        binding.btnAutoPick.text = getString(if (auto) R.string.autopick_stop else R.string.autopick_start)
+                    }
+                }
+                launch {
+                    viewModel.showAll.collect { showAll ->
+                        if (binding.cbOnlyNamed.isChecked == showAll) {
+                            binding.cbOnlyNamed.isChecked = !showAll
+                        }
                     }
                 }
                 launch {

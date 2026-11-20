@@ -44,6 +44,18 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val _scanning = MutableStateFlow(false)
     val scanning: StateFlow<Boolean> = _scanning.asStateFlow()
 
+    /** Радар: true — карточки всех устройств, независимо от имени. */
+    private val _hubMode = MutableStateFlow(false)
+    val hubMode: StateFlow<Boolean> = _hubMode.asStateFlow()
+
+    /** Автоподключение к самому сильному сигналу («поднести телефон к байку»). */
+    private val _autoPick = MutableStateFlow(false)
+    val autoPick: StateFlow<Boolean> = _autoPick.asStateFlow()
+
+    private val _showAll = MutableStateFlow(false)
+    /** Показывать все устройства в эфире, не только «с именем». */
+    val showAll: StateFlow<Boolean> = _showAll.asStateFlow()
+
     private val _target = MutableStateFlow<CharInfo?>(null)
     /** null = писать во все writable-характеристики. */
     val target: StateFlow<CharInfo?> = _target.asStateFlow()
@@ -98,9 +110,16 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         onError = { message -> appendLog(LogEntry(System.currentTimeMillis(), LogKind.ERROR, message)) },
     )
 
+    /** Устройство, к которому уже пытались подключиться в режиме автоподключения. */
+    private var autoAttempted: String? = null
+
     init {
         // Скан мог остановиться сам (ошибка адаптера) — сбрасываем кнопку в UI.
         scanner.onScanFailed = { _scanning.value = false }
+        scanner.onStopped = {
+            _scanning.value = false
+            if (_hubMode.value) maybeAutoConnect()
+        }
     }
 
     fun connectedAddress(): String? = connectedAddress
@@ -123,6 +142,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun startScan() {
         appendLog(LogEntry(System.currentTimeMillis(), LogKind.INFO, "Запуск сканирования…"))
         _scanning.value = true
+        scanner.autoStopMs = if (_hubMode.value) 0 else 8_000
         scanner.start()
     }
 
@@ -134,19 +154,88 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun isScanning(): Boolean = _scanning.value
 
-    fun setOnlyNamed(value: Boolean) {
-        onlyNamed = value
+    fun setShowAll(value: Boolean) {
+        _showAll.value = value
         publishDevices()
+    }
+
+    /** Радар: держим скан включённым и показываем всё, что слышно. */
+    fun toggleHub() {
+        val next = !_hubMode.value
+        _hubMode.value = next
+        if (next) {
+            _showAll.value = true
+            appendLog(LogEntry(System.currentTimeMillis(), LogKind.INFO, "Радар включён: показываю все устройства в эфире"))
+            startScan()
+        } else {
+            _autoPick.value = false
+            stopScan()
+        }
+    }
+
+    fun toggleAutoPick() {
+        val next = !_autoPick.value
+        _autoPick.value = next
+        if (next) {
+            _hubMode.value = true
+            _showAll.value = true
+            autoAttempted = null
+            appendLog(
+                LogEntry(
+                    System.currentTimeMillis(),
+                    LogKind.INFO,
+                    "Автоподключение: поднесите телефон к байку (30–50 см), подключусь к самому сильному сигналу",
+                ),
+            )
+            startScan()
+        } else {
+            appendLog(LogEntry(System.currentTimeMillis(), LogKind.INFO, "Автоподключение выключено"))
+        }
+    }
+
+    /** Если подключение уже есть — не трогаем; иначе пробуем самый сильный сигнал. */
+    private fun maybeAutoConnect() {
+        if (!_autoPick.value) return
+        val current = state.value
+        if (current is ConnState.Connected || current is ConnState.Connecting) {
+            _autoPick.value = false
+            return
+        }
+        val candidate = _devices.value
+            .filter { it.connectable && it.address != autoAttempted }
+            .maxByOrNull { it.rssi } ?: return
+        if (candidate.rssi < -80) {
+            appendLog(
+                LogEntry(
+                    System.currentTimeMillis(),
+                    LogKind.WARN,
+                    "Самый сильный сигнал ${candidate.rssi} dBm — слишком далеко, поднесите телефон ближе",
+                ),
+            )
+            return
+        }
+        autoAttempted = candidate.address
+        appendLog(
+            LogEntry(
+                System.currentTimeMillis(),
+                LogKind.INFO,
+                "Автоподключение к ${candidate.name ?: candidate.address} (${candidate.rssi} dBm)",
+            ),
+        )
+        val context = getApplication<Application>()
+        remoteDevice(context, candidate.address)?.let { connect(it) }
     }
 
     private fun publishDevices() {
         _devices.value = allDevices.values
-            .filter { !onlyNamed || it.name != null }
+            .filter { _showAll.value || it.name != null }
             .sortedByDescending { it.rssi }
     }
 
     fun connect(device: BluetoothDevice) {
-        if (_scanning.value) stopScan()
+        // В режиме радара скан можно не рвать, пока идёт подключение — так видны
+        // другие устройства рядом. Но автоподключение к следующему отключаем.
+        if (!_hubMode.value && _scanning.value) stopScan()
         connectedAddress = device.address
         targetAutoChosen = false
         _target.value = null

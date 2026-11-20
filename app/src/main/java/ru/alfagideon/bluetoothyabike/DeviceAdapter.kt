@@ -1,6 +1,5 @@
 package ru.alfagideon.bluetoothyabike
 
-import android.content.Context
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -11,6 +10,7 @@ import androidx.recyclerview.widget.RecyclerView
 /** Адаптер списка устройств. Тап по карточке — подключение. */
 class DeviceAdapter(
     private val onClick: (ScanDevice) -> Unit,
+    private val onLongClick: (ScanDevice) -> Unit = {},
 ) : RecyclerView.Adapter<DeviceAdapter.Holder>() {
 
     private val items = mutableListOf<ScanDevice>()
@@ -37,14 +37,18 @@ class DeviceAdapter(
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): Holder {
         val view = LayoutInflater.from(parent.context).inflate(R.layout.item_device, parent, false)
-        return Holder(view, onClick)
+        return Holder(view, onClick, onLongClick)
     }
 
     override fun onBindViewHolder(holder: Holder, position: Int) = holder.bind(items[position])
 
     override fun getItemCount(): Int = items.size
 
-    class Holder(view: View, private val onClick: (ScanDevice) -> Unit) : RecyclerView.ViewHolder(view) {
+    class Holder(
+        view: View,
+        private val onClick: (ScanDevice) -> Unit,
+        private val onLongClick: (ScanDevice) -> Unit,
+    ) : RecyclerView.ViewHolder(view) {
         private val name: TextView = view.findViewById(R.id.tvName)
         private val meta: TextView = view.findViewById(R.id.tvMeta)
         private val rssi: TextView = view.findViewById(R.id.tvRssi)
@@ -61,6 +65,10 @@ class DeviceAdapter(
             val color = if (device.name != null) R.color.text_primary else R.color.text_secondary
             name.setTextColor(ContextCompat.getColor(itemView.context, color))
             itemView.setOnClickListener { onClick(device) }
+            itemView.setOnLongClickListener {
+                onLongClick(device)
+                true
+            }
         }
     }
 }

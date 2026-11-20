@@ -10,6 +10,11 @@
     <string name="scan_stop">Стоп</string>
     <string name="clear">Очистить</string>
     <string name="only_named">только с именем</string>
+    <string name="radar_start">Радар</string>
+    <string name="radar_stop">Стоп радар</string>
+    <string name="autopick_start">Поднести к байку</string>
+    <string name="autopick_stop">Отменить автоподключение</string>
+    <string name="list_hint">долгий тап — скопировать MAC</string>
     <string name="export">Экспорт</string>
     <string name="send">Отправить</string>
     <string name="presets">Тест-кадры</string>
