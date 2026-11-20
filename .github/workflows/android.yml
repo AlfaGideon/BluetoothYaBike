@@ -42,7 +42,13 @@ jobs:
         run: chmod +x ./gradlew
 
       - name: Сборка debug + release APK
-        run: ./gradlew --no-daemon assembleDebug assembleRelease
+        run: |
+          set -o pipefail
+          ./gradlew --no-daemon --console=plain assembleDebug assembleRelease 2>&1 | tee "$RUNNER_TEMP/gradle.log"
+
+      - name: Ошибки сборки — в аннотацию (логи читаемы через API)
+        if: failure()
+        run: python3 .github/scripts/annotate_build.py
 
       - name: Проверка тестов
         run: ./gradlew --no-daemon testDebugUnitTest
